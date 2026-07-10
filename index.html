@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spam Message Checker</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #f0f2f5;
+    color: #1a1a1a;
+  }
+  h1 {
+    text-align: center;
+    color: #1a1a2e;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 28px;
+    font-size: 14px;
+  }
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom: 24px;
+  }
+  textarea {
+    width: 100%;
+    height: 110px;
+    padding: 12px;
+    font-size: 15px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    resize: vertical;
+    font-family: inherit;
+  }
+  textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+  }
+  button {
+    display: block;
+    width: 100%;
+    padding: 13px;
+    margin-top: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: #1d4ed8; }
+  button:disabled { background: #93c5fd; cursor: not-allowed; }
+
+  #result {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 16px;
+    text-align: center;
+    display: none;
+    font-weight: 600;
+  }
+  .spam { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+  .ham  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+  .error { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+
+  .history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .history-header h2 { margin: 0; font-size: 18px; color: #1a1a2e; }
+  .clear-btn {
+    width: auto;
+    padding: 6px 12px;
+    font-size: 13px;
+    background: #ef4444;
+    margin-top: 0;
+  }
+  .clear-btn:hover { background: #dc2626; }
+
+  .history-item {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-message {
+    color: #333;
+    margin-bottom: 6px;
+    word-break: break-word;
+  }
+  .history-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+  .tag {
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+  }
+  .tag.spam { background: #fee2e2; color: #b91c1c; border: none; }
+  .tag.ham { background: #dcfce7; color: #15803d; border: none; }
+  .time { color: #999; }
+  .empty-history { text-align: center; color: #999; padding: 20px; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>🛡️ Spam Message Checker</h1>
+<p class="subtitle">Bilingual (Bangla + English) spam & scam detector</p>
+
+<div class="card">
+  <textarea id="messageInput" placeholder="Paste an SMS or email message here..."></textarea>
+  <button id="checkBtn" onclick="checkMessage()">Check Message</button>
+  <div id="result"></div>
+</div>
+
+<div class="card">
+  <div class="history-header">
+    <h2>Recent Checks</h2>
+    <button class="clear-btn" onclick="clearHistory()">Clear</button>
+  </div>
+  <div id="historyList"></div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+
+async function checkMessage() {
+  const text = document.getElementById("messageInput").value;
+  const resultDiv = document.getElementById("result");
+  const btn = document.getElementById("checkBtn");
+
+  if (!text.trim()) {
+    alert("Please enter a message first.");
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerText = "Checking...";
+  resultDiv.style.display = "block";
+  resultDiv.className = "";
+  resultDiv.innerText = "Checking...";
+
+  try {
+    const response = await fetch(`${API_BASE}/predict`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text })
+    });
+
+    const data = await response.json();
+
+    resultDiv.className = data.prediction === "spam" ? "spam" : "ham";
+    resultDiv.innerText =
+      (data.prediction === "spam" ? "⚠️ SPAM" : "✅ SAFE (Ham)") +
+      " — Confidence: " + data.confidence + "%";
+
+    document.getElementById("messageInput").value = "";
+    loadHistory();
+
+  } catch (error) {
+    resultDiv.className = "error";
+    resultDiv.innerText = "⚠️ Could not reach the server. Is it running?";
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Check Message";
+  }
+}
+
+async function loadHistory() {
+  const historyList = document.getElementById("historyList");
+  try {
+    const response = await fetch(`${API_BASE}/history?limit=15`);
+    const data = await response.json();
+
+    if (data.length === 0) {
+      historyList.innerHTML = '<div class="empty-history">No checks yet. Try checking a message above.</div>';
+      return;
+    }
+
+    historyList.innerHTML = data.map(item => {
+      const date = new Date(item.checked_at);
+      const timeStr = date.toLocaleString();
+      const shortMsg = item.message.length > 100 ? item.message.slice(0, 100) + "..." : item.message;
+
+      return `
+        <div class="history-item">
+          <div class="history-message">${escapeHtml(shortMsg)}</div>
+          <div class="history-meta">
+            <span class="tag ${item.prediction}">${item.prediction.toUpperCase()} · ${item.confidence}%</span>
+            <span class="time">${timeStr}</span>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+  } catch (error) {
+    historyList.innerHTML = '<div class="empty-history">Could not load history.</div>';
+  }
+}
+
+async function clearHistory() {
+  if (!confirm("Clear all history?")) return;
+  try {
+    await fetch(`${API_BASE}/history`, { method: "DELETE" });
+    loadHistory();
+  } catch (error) {
+    alert("Could not clear history.");
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.innerText = text;
+  return div.innerHTML;
+}
+
+// Load history when the page opens
+loadHistory();
+</script>
+
+</body>
+</html>
