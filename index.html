@@ -117,6 +117,57 @@
   .tag.ham { background: #dcfce7; color: #15803d; border: none; }
   .time { color: #999; }
   .empty-history { text-align: center; color: #999; padding: 20px; font-size: 14px; }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal-overlay.show {
+    display: flex;
+  }
+  .modal-box {
+    background: white;
+    border-radius: 12px;
+    padding: 28px 24px;
+    max-width: 320px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  }
+  .modal-text {
+    font-size: 16px;
+    color: #1a1a1a;
+    margin: 0 0 20px 0;
+  }
+  .modal-buttons {
+    display: flex;
+    gap: 10px;
+  }
+  .modal-btn {
+    flex: 1;
+    margin-top: 0;
+    padding: 10px;
+    font-size: 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .cancel-btn {
+    background: #e5e7eb;
+    color: #333;
+  }
+  .cancel-btn:hover { background: #d1d5db; }
+  .confirm-btn {
+    background: #ef4444;
+    color: white;
+  }
+  .confirm-btn:hover { background: #dc2626; }
 </style>
 </head>
 <body>
@@ -133,9 +184,19 @@
 <div class="card">
   <div class="history-header">
     <h2>Recent Checks</h2>
-    <button class="clear-btn" onclick="clearHistory()">Clear</button>
+    <button class="clear-btn" onclick="showClearModal()">Clear</button>
   </div>
   <div id="historyList"></div>
+</div>
+
+<div id="modalOverlay" class="modal-overlay">
+  <div class="modal-box">
+    <p class="modal-text">Clear all history?</p>
+    <div class="modal-buttons">
+      <button class="modal-btn cancel-btn" onclick="hideClearModal()">Cancel</button>
+      <button class="modal-btn confirm-btn" onclick="confirmClearHistory()">Clear</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -215,8 +276,16 @@ async function loadHistory() {
   }
 }
 
-async function clearHistory() {
-  if (!confirm("Clear all history?")) return;
+function showClearModal() {
+  document.getElementById("modalOverlay").classList.add("show");
+}
+
+function hideClearModal() {
+  document.getElementById("modalOverlay").classList.remove("show");
+}
+
+async function confirmClearHistory() {
+  hideClearModal();
   try {
     await fetch(`${API_BASE}/history`, { method: "DELETE" });
     loadHistory();
